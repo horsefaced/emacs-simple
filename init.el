@@ -42,25 +42,29 @@
 
 (dolist (source '(("marmalade" . "http://marmalade-repo.org/packages/")
 		  ("elpa" . "http://tromey.com/elpa/")
-		  ("melpa stable" . "http://stable.melpa.org/packages/")))
+		  ("melpa stable" . "http://stable.melpa.org/packages/")
+		  ("melpa-china" . "http://elpa.emacs-china.org/melpa/")
+		  ("gnu" . "http://elpa.emacs-china.org/gnu/")))
   (add-to-list 'package-archives source t))
 (package-initialize)
 
-(custom-set-variables
- ;; custom-set-variables was added by Custom.
- ;; If you edit it by hand, you could mess it up, so be careful.
- ;; Your init file should contain only one such instance.
- ;; If there is more than one, they won't work right.
- '(package-selected-packages
-   (quote
-    (gtags imenu-anywhere markdown-mode+ window-numbering pcomplete-extension eshell-manual exec-path-from-shell flycheck ac-emacs-eclim ac-html-angular ac-html-csswatcher ac-php ac-python auto-complete-clang auto-complete-etags org-ac ac-html-bootstrap powerline ac-html ac-js2 web-mode ace-jump-mode undo-tree autopair smex auto-complete))))
-(custom-set-faces
- ;; custom-set-faces was added by Custom.
- ;; If you edit it by hand, you could mess it up, so be careful.
- ;; Your init file should contain only one such instance.
- ;; If there is more than one, they won't work right.
- )
+(require 'cl)
 
+(defvar my-packages '(window-numbering pcomplete-extension eshell-manual exec-path-from-shell flycheck ac-emacs-eclim ac-html-angular ac-html-csswatcher ac-php ac-python auto-complete-clang auto-complete-etags org-ac ac-html-bootstrap powerline ac-html ac-js2 web-mode ace-jump-mode undo-tree autopair smex auto-complete) "custom packages")
+
+(setq package-selected-packages my-packages)
+
+(defun my-packages-installed-p ()
+  (loop for pkg in my-packages
+	when (not (package-installed-p pkg)) do (return nil)
+	finally (return t)))
+
+(unless (my-packages-installed-p)
+  (message "%s" "Refreshing package database...")
+  (package-refresh-contents)
+  (dolist (pkg my-packages)
+    (when (not (package-installed-p pkg))
+      (package-install pkg))))
 
 (global-set-key (kbd "M-x") 'smex)
 
@@ -116,87 +120,4 @@
 
 (window-numbering-mode)
 
-;;imenu-anywhere
-(global-set-key (kbd "C-.") #'imenu-anywhere)
-
-
-(defun es-js-imenu-create-index ()
-  "Return an imenu index for the current buffer."
-  (save-excursion
-    (save-restriction
-      (let (unique-names result name pos)
-        (widen)
-        (goto-char (point-min))
-        (while (re-search-forward
-                (concat "\\(\\_<.+?\\_>\\) = function"
-                        "\\|"
-                        "\\(\\_<.+?\\_>\\): function"
-                        "\\|"
-                        "function \\(\\_<.+?\\_>\\)")
-                nil t)
-          (setq name (or (match-string-no-properties 1)
-                         (match-string-no-properties 2)
-                         (match-string-no-properties 3))
-                pos (or (match-beginning 1)
-                        (match-beginning 2)
-                        (match-beginning 3)))
-          (when (member name unique-names)
-            (let ((counter 2)
-                  new-name)
-              (while (progn (setq new-name (concat name "[" (int-to-string counter) "]"))
-                            (member new-name unique-names))
-                (incf counter))
-              (setq name new-name)))
-          (push name unique-names)
-          (push (cons name (js--maybe-make-marker pos)) result))
-        (nreverse result)))))
-
-
-(defun es-js-imenu-goto-function-at-point ()
-  (interactive)
-  (let* (( word (or (thing-at-point 'symbol)
-                    (return-from es-js-imenu-goto-function-at-point)))
-         ( index (es-js-imenu-create-index))
-         ( pair (or (find-if (lambda (cons)
-                               (and (string-prefix-p word (car cons))
-                                    (not (= (point) (marker-position (cdr cons))))))
-                             index)
-                    (return-from es-js-imenu-goto-function-at-point))))
-    (ring-insert find-tag-marker-ring (point-marker))
-    (goto-char (marker-position (cdr pair))))
-  )
-
-(add-hook 
- 'web-mode-hook
- '(lambda ()
-    (setq-local imenu-create-index-function 'es-js-imenu-create-index)
-    (gtags-mode 1)))
-;; (setq javascript-common-imenu-regex-list
-;;       '(("Controller" "[. \t]controller([ \t]*['\"]\\([^'\"]+\\)" 1)
-;;         ("Controller" "[. \t]controllerAs:[ \t]*['\"]\\([^'\"]+\\)" 1)
-;;         ("Filter" "[. \t]filter([ \t]*['\"]\\([^'\"]+\\)" 1)
-;;         ("State" "[. \t]state[(:][ \t]*['\"]\\([^'\"]+\\)" 1)
-;;         ("Factory" "[. \t]factory([ \t]*['\"]\\([^'\"]+\\)" 1)
-;;         ("Service" "[. \t]service([ \t]*['\"]\\([^'\"]+\\)" 1)
-;;         ("Module" "[. \t]module( *['\"]\\([a-zA-Z0-9_.]+\\)['\"], *\\[" 1)
-;;         ("ngRoute" "[. \t]when(\\(['\"][a-zA-Z0-9_\/]+['\"]\\)" 1)
-;;         ("Directive" "[. \t]directive([ \t]*['\"]\\([^'\"]+\\)" 1)
-;;         ("Event" "[. \t]\$on([ \t]*['\"]\\([^'\"]+\\)" 1)
-;;         ("Config" "[. \t]config([ \t]*function *( *\\([^\)]+\\)" 1)
-;;         ("Config" "[. \t]config([ \t]*\\[ *['\"]\\([^'\"]+\\)" 1)
-;;         ("OnChange" "[ \t]*\$(['\"]\\([^'\"]*\\)['\"]).*\.change *( *function" 1)
-;;         ("OnClick" "[ \t]*\$([ \t]*['\"]\\([^'\"]*\\)['\"]).*\.click *( *function" 1)
-;;         ("Watch" "[. \t]\$watch( *['\"]\\([^'\"]+\\)" 1)
-;;         ("Function" "function[ \t]+\\([a-zA-Z0-9_$.]+\\)[ \t]*(" 1)
-;;         ("Function" "^[ \t]*\\([a-zA-Z0-9_$.]+\\)[ \t]*=[ \t]*function[ \t]*(" 1)
-;;         ;; {{ es6 beginning
-;;         ("Function" "^[ \t]*\\([A-Za-z_$][A-Za-z0-9_$]+\\)[ \t]*([a-zA-Z0-9, ]*) *\{ *$" 1) ;; es6 fn1 () { }
-;;         ("Function" "^[ \t]*\\([A-Za-z_$][A-Za-z0-9_$]+\\)[ \t]*=[ \t]*(?[a-zA-Z0-9, ]*)?[ \t]*=>" 1) ;; es6 fn1 = (e) =>
-;;         ;; }}
-;;         ("Task" "[. \t]task([ \t]*['\"]\\([^'\"]+\\)" 1)
-;;         ))
-
-;; (add-hook 'web-mode-hook
-;; 	  (lambda ()
-;; 	    (setq imenu-generic-expression javascript-common-imenu-regex-list)))
 
